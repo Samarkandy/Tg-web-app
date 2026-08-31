@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>TMA: Заработок и Задания</title>
+    <!-- Подключение Telegram Web App SDK -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <!-- Tailwind CSS для быстрого и красивого дизайна -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome для иконок -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+
+    <style>
+        /* Настройка цветов на основе темы Telegram */
+        :root {
+            --bg-color: var(--tg-theme-bg-color, #ffffff);
+            --text-color: var(--tg-theme-text-color, #000000);
+            --hint-color: var(--tg-theme-hint-color, #999999);
+            --link-color: var(--tg-theme-link-color, #2481cc);
+            --button-color: var(--tg-theme-button-color, #10b981);
+            /* Изумрудный / Халяль */
+            --button-text-color: var(--tg-theme-button-text-color, #ffffff);
+            --secondary-bg-color: var(--tg-theme-secondary-bg-color, #f3f4f6);
+            --primary-accent: #10b981;
+        }
+
+        body {
+            background-color: var(--secondary-bg-color);
+            color: var(--text-color);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            overflow-x: hidden;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+            /* Предотвращаем случайное выделение текста */
+        }
+
+        /* SPA Логика (Single Page Application) - переключение без перезагрузки */
+        .page {
+            display: none;
+            padding-bottom: 80px;
+            /* Место под навигацию */
+            animation: fadeIn 0.3s ease-in-out;
+        }
+
+        .page.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Нижнее навигационное меню */
+        .nav-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background-color: var(--bg-color);
+            display: flex;
+            justify-content: space-around;
+            padding: 10px 0;
+            box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.05);
+            z-index: 1000;
+            padding-bottom: calc(10px + env(safe-area-inset-bottom));
+        }
+
+        .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            color: var(--hint-color);
+            text-decoration: none;
+            font-size: 11px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: color 0.2s, transform 0.1s;
+            flex: 1;
+        }
+
+        .nav-item i {
+            font-size: 22px;
+            margin-bottom: 4px;
+            transition: transform 0.2s;
+        }
+
+        .nav-item.active {
+            color: var(--primary-accent);
+        }
+
+        .nav-item.active i {
+            transform: scale(1.1);
+        }
+
+        /* Стили карточек и кнопок */
+        .card {
+            background-color: var(--bg-color);
+            border-radius: 16px;
+            padding: 16px;
+            margin: 16px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.02);
+        }
+
+        .btn {
+            background-color: var(--button-color);
+            color: var(--button-text-color);
+            border: none;
+            border-radius: 12px;
+            padding: 14px 16px;
+            font-weight: 600;
+            font-size: 16px;
+            width: 100%;
+            cursor: pointer;
+            transition: transform 0.1s, opacity 0.2s;
+            text-align: center;
+        }
+
+        .btn:active {
+            transform: scale(0.97);
+            opacity: 0.9;
+        }
+
+        .btn-outline {
+            background-color: transparent;
+            border: 2px solid var(--primary-accent);
+            color: var(--primary-accent);
+        }
+
+        /* Списки заданий */
+        .task-item {
+            background-color: var(--bg-color);
+            border-radius: 16px;
+            padding: 16px;
+            margin: 0 16px 12px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+            transition: background-color 0.2s;
+            cursor: pointer;
+        }
+
+        .task-item:active {
+            background-color: var(--secondary-bg-color);
+        }
+
+        .task-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 14px;
+            background-color: rgba(16, 185, 129, 0.1);
+            color: var(--primary-accent);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            flex-shrink: 0;
+        }
+
+        /* Верхний хедер */
+        .top-header {
+            background-color: var(--bg-color);
+            padding: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
+        }
+
+        .balance-pill {
+            background-color: rgba(245, 158, 11, 0.1);
+            color: #f59e0b;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 14px;
+        }
+
+        /* Таблица лидеров */
+        .leaderboard-item {
+            display: flex;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--secondary-bg-color);
+        }
+
+        .leaderboard-item:last-child {
+            border-bottom: none;
+        }
+
+        .rank {
+            width: 30px;
+            font-weight: bold;
+            color: var(--hint-color);
+            text-align: center;
+        }
+
+        .rank-1 {
+            color: #fbbf24;
+            font-size: 18px;
+        }
+
+        .rank-2 {
+            color: #9ca3af;
+            font-size: 18px;
+        }
+
+        .rank-3 {
+            color: #b45309;
+            font-size: 18px;
+        }
+
+        /* Темная тема - поддержка */
+        @media (prefers-color-scheme: dark) {
+
+            .task-item,
+            .card,
+            .top-header,
+            .nav-bar {
+                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Шапка приложения -->
+    <div class="top-header">
+        <div class="flex items-center gap-3">
+            <div id="userAvatar"
+                class="w-10 h-10 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-400 text-white flex items-center justify-center font-bold text-lg shadow-sm">
+                ?
+            </div>
+            <div>
+                <div class="font-bold text-sm" id="userName">Загрузка...</div>
+                <div class="text-xs text-gray-500" id="userRole">Пользователь</div>
+            </div>
+        </div>
+        <div class="balance-pill">
+            <i class="fas fa-star"></i>
+            <span id="userBalance">0</span>
+        </div>
+    </div>
+
+    <!-- КОНТЕЙНЕРЫ СТРАНИЦ -->
+
+    <!-- 1. Страница: Задания -->
+    <div id="page-tasks" class="page active">
+        <div class="px-4 py-5">
+            <h2 class="text-2xl font-bold mb-2">Задания</h2>
+            <p class="text-sm text-gray-500 mb-4">Выполняйте задачи (копирайтинг, ИИ-разметка, анализ рынка) и
+                зарабатывайте честно.</p>
+        </div>
+
+        <div class="flex flex-col gap-2" id="tasksList">
+            <!-- Задание 1 -->
+            <div class="task-item" onclick="openTask('ai_training', 1)">
+                <div class="task-icon bg-blue-50 text-blue-500">
+                    <i class="fas fa-brain"></i>
+                </div>
+                <div class="flex-grow mx-3">
+                    <div class="font-semibold text-base mb-1">Обучение ИИ</div>
+                    <div class="text-xs text-gray-500">Оценка ответов нейросети (Узб/Рус)</div>
+                </div>
+                <div class="text-right">
+                    <div class="text-amber-500 font-bold text-sm"><i class="fas fa-star text-xs"></i> +50</div>
+                    <i class="fas fa-chevron-right text-gray-400 text-xs mt-1"></i>
+                </div>
+            </div>
+
+            <!-- Задание 2 -->
+            <div class="task-item" onclick="openTask('copywriting', 2)">
+                <div class="task-icon bg-purple-50 text-purple-500">
+                    <i class="fas fa-pen-nib"></i>
+                </div>
+                <div class="flex-grow mx-3">
+                    <div class="font-semibold text-base mb-1">Копирайтинг</div>
+                    <div class="text-xs text-gray-500">Написание поста для Telegram канала</div>
+                </div>
+                <div class="text-right">
+                    <div class="text-amber-500 font-bold text-sm"><i class="fas fa-star text-xs"></i> +120</div>
+                    <i class="fas fa-chevron-right text-gray-400 text-xs mt-1"></i>
+                </div>
+            </div>
+
+            <!-- Задание 3 -->
+            <div class="task-item" onclick="openTask('market_analysis', 3)">
+                <div class="task-icon bg-emerald-50 text-emerald-500">
+                    <i class="fas fa-chart-pie"></i>
+                </div>
+                <div class="flex-grow mx-3">
+                    <div class="font-semibold text-base mb-1">Анализ рынка</div>
+                    <div class="text-xs text-gray-500">Сбор цен в интернет-магазинах</div>
+                </div>
+                <div class="text-right">
+                    <div class="text-amber-500 font-bold text-sm"><i class="fas fa-star text-xs"></i> +80</div>
+                    <i class="fas fa-chevron-right text-gray-400 text-xs mt-1"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. Страница: Рейтинг (Конкуренция без азарта) -->
+    <div id="page-leaderboard" class="page">
+        <div class="px-4 py-5">
+            <h2 class="text-2xl font-bold mb-4">Рейтинг Исполнителей</h2>
+
+            <!-- Карточка пользователя -->
+            <div class="card !m-0 mb-6 bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg">
+                <div class="text-center py-2">
+                    <div class="text-sm font-medium opacity-90">Ваше место в рейтинге</div>
+                    <div class="text-4xl font-extrabold my-2">#42</div>
+                    <div class="text-sm opacity-90">До топ-10 осталось 340 звезд</div>
+                </div>
+            </div>
+
+            <h3 class="font-bold text-gray-500 uppercase text-xs tracking-wider mb-3 ml-2">Топ за неделю</h3>
+
+            <div class="card !m-0">
+                <div class="leaderboard-item">
+                    <div class="rank rank-1"><i class="fas fa-crown"></i></div>
+                    <div
+                        class="w-10 h-10 rounded-full bg-blue-500 text-white flex items-center justify-center font-bold mr-3">
+                        A</div>
+                    <div class="flex-grow">
+                        <div class="font-bold text-sm">Alisher</div>
+                        <div class="text-xs text-gray-500">124 выполненных</div>
+                    </div>
+                    <div class="font-bold text-amber-500 text-sm">15,400 <i class="fas fa-star text-xs"></i></div>
+                </div>
+
+                <div class="leaderboard-item">
+                    <div class="rank rank-2">2</div>
+                    <div
+                        class="w-10 h-10 rounded-full bg-red-500 text-white flex items-center justify-center font-bold mr-3">
+                        D</div>
+                    <div class="flex-grow">
+                        <div class="font-bold text-sm">Dilshod</div>
+                        <div class="text-xs text-gray-500">98 выполненных</div>
+                    </div>
+                    <div class="font-bold text-amber-500 text-sm">12,100 <i class="fas fa-star text-xs"></i></div>
+                </div>
+
+                <div class="leaderboard-item">
+                    <div class="rank rank-3">3</div>
+                    <div
+                        class="w-10 h-10 rounded-full bg-purple-500 text-white flex items-center justify-center font-bold mr-3">
+                        S</div>
+                    <div class="flex-grow">
+                        <div class="font-bold text-sm">Sirojiddin</div>
+                        <div class="text-xs text-gray-500">89 выполненных</div>
+                    </div>
+                    <div class="font-bold text-amber-500 text-sm">11,250 <i class="fas fa-star text-xs"></i></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. Страница: PRO Статус (Монетизация) -->
+    <div id="page-pro" class="page">
+        <div class="p-4">
+            <div class="text-center my-6">
+                <div
+                    class="inline-flex items-center justify-center w-24 h-24 rounded-full bg-amber-100 text-amber-500 text-5xl mb-4 shadow-inner">
+                    <i class="fas fa-gem"></i>
+                </div>
+                <h2 class="text-3xl font-extrabold mb-2">PRO Статус</h2>
+                <p class="text-gray-500 text-sm leading-relaxed px-4">Откройте доступ к высокооплачиваемым приватным
+                    заданиям и приоритетной проверке.</p>
+            </div>
+
+            <div class="card space-y-5 mb-8">
+                <div class="flex items-start gap-4">
+                    <i class="fas fa-check-circle text-emerald-500 text-xl mt-1"></i>
+                    <div>
+                        <div class="font-bold text-base">Доступ к закрытым заказам</div>
+                        <div class="text-sm text-gray-500 mt-1">Задания от премиум-рекламодателей</div>
+                    </div>
+                </div>
+                <div class="flex items-start gap-4">
+                    <i class="fas fa-check-circle text-emerald-500 text-xl mt-1"></i>
+                    <div>
+                        <div class="font-bold text-base">Мгновенный вывод</div>
+                        <div class="text-sm text-gray-500 mt-1">Вывод средств без очереди и комиссии</div>
+                    </div>
+                </div>
+                <div class="flex items-start gap-4">
+                    <i class="fas fa-check-circle text-emerald-500 text-xl mt-1"></i>
+                    <div>
+                        <div class="font-bold text-base">Уникальный бейдж</div>
+                        <div class="text-sm text-gray-500 mt-1">Выделение вашего профиля в рейтинге</div>
+                    </div>
+                </div>
+            </div>
+            
+            <button class="btn bg-amber-500 hover:bg-amber-600 shadow-lg shadow-amber-500/40 py-4 text-lg" onclick="buyPro()">
+                Купить PRO (500 Stars)
+            </button>
+        </div>
+    </div>
+
+    <!-- 4. Страница: Профиль -->
+    <div id="page-profile" class="page">
+        <div class="p-4">
+            <div class="text-center mb-8 pt-6">
+                <div id="profileAvatar"
+                    class="w-28 h-28 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-400 text-white flex items-center justify-center font-bold text-5xl mx-auto mb-4 shadow-md border-4 border-white dark:border-gray-800">
+                    ?
+                </div>
+                <h2 id="profileName" class="text-2xl font-bold">Имя Фамилия</h2>
+                <p id="profileUsername" class="text-gray-500 mt-1">@username</p>
+            </div>
+
+            <div class="card mb-6 !m-0 p-5">
+                <h3 class="font-bold text-lg mb-4">Статистика</h3>
+                <div class="flex justify-between items-center py-3 border-b border-gray-100 dark:border-gray-700">
+                    <div class="flex items-center gap-3 text-gray-600 dark:text-gray-300">
+                        <i class="fas fa-wallet text-gray-400"></i> Баланс
+                    </div>
+                    <span class="font-bold text-amber-500 text-lg"><span id="profileBalance">0</span> <i
+                            class="fas fa-star text-sm"></i></span>
+                </div>
+                <div class="flex justify-between items-center py-3 border-b border-gray-100 dark:border-gray-700">
+                    <div class="flex items-center gap-3 text-gray-600 dark:text-gray-300">
+                        <i class="fas fa-check-square text-gray-400"></i> Выполнено заданий
+                    </div>
+                    <span class="font-bold text-lg" id="completedTasksCount">0</span>
+                </div>
+                <div class="flex justify-between items-center py-3">
+                    <div class="flex items-center gap-3 text-gray-600 dark:text-gray-300">
+                        <i class="fas fa-percent text-gray-400"></i> Успешность
+                    </div>
+                    <span class="font-bold text-emerald-500 text-lg">100%</span>
+                </div>
+            </div>
+
+            <div class="space-y-3">
+                <button class="btn btn-outline flex items-center justify-center gap-2" onclick="contactSupport()">
+                    <i class="fas fa-headset"></i> Написать в поддержку
+                </button>
+                <button class="btn flex items-center justify-center gap-2"
+                    style="background-color: var(--secondary-bg-color); color: #ef4444;" onclick="closeApp()">
+                    <i class="fas fa-times"></i> Закрыть приложение
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Нижняя Навигация -->
+    <div class="nav-bar">
+        <a class="nav-item active" data-target="page-tasks" onclick="switchTab('page-tasks', this)">
+            <i class="fas fa-clipboard-list"></i>
+            <span>Задания</span>
+        </a>
+        <a class="nav-item" data-target="page-leaderboard" onclick="switchTab('page-leaderboard', this)">
+            <i class="fas fa-trophy"></i>
+            <span>Рейтинг</span>
+        </a>
+        <a class="nav-item" data-target="page-pro" onclick="switchTab('page-pro', this)">
+            <i class="fas fa-gem" style="color: #f59e0b;"></i>
+            <span>PRO</span>
+        </a>
+        <a class="nav-item" data-target="page-profile" onclick="switchTab('page-profile', this)">
+            <i class="fas fa-user"></i>
+            <span>Профиль</span>
+        </a>
+    </div>
+
+    <!-- ЛОГИКА ПРИЛОЖЕНИЯ -->
+    <script>
+        // Инициализация Telegram WebApp
+        const tg = window.Telegram.WebApp;
+
+        // Вставьте сюда вашу ссылку от Render (например https://tma-api-uz.onrender.com)
+        const RENDER_BACKEND_URL = "https://tma-api-uz.onrender.com";
+
+        const API_URL = (window.location.hostname.includes('github.io') || window.location.hostname === 'localhost' && window.location.port !== '8000')
+            ? RENDER_BACKEND_URL + "/api"
+            : window.location.origin + "/api";
+
+        let currentUserData = null;
+
+        // Расширяем на весь экран
+        tg.expand();
+        // Сообщаем телеграму, что приложение готово к отображению
+        tg.ready();
+
+        // Применяем тему телеграма к body (если не сработают CSS переменные)
+        if (tg.colorScheme === 'dark') {
+            document.body.classList.add('dark');
+        }
+
+        // Данные пользователя из Telegram и загрузка с бэкенда
+        async function initApp() {
+            const user = tg.initDataUnsafe?.user;
+
+            if (user) {
+                const firstName = user.first_name || 'Пользователь';
+                const lastName = user.last_name || '';
+                const fullName = `${firstName} ${lastName}`.trim();
+                const initial = firstName.charAt(0).toUpperCase();
+                const username = user.username ? `@${user.username}` : 'ID: ' + user.id;
+
+                // Заполняем Шапку
+                document.getElementById('userName').innerText = firstName;
+                document.getElementById('userAvatar').innerText = initial;
+
+                // Заполняем Профиль
+                document.getElementById('profileName').innerText = fullName;
+                document.getElementById('profileUsername').innerText = username;
+                document.getElementById('profileAvatar').innerText = initial;
+            } else {
+                console.log("Приложение запущено вне Telegram");
+                document.getElementById('userName').innerText = 'Гость';
+                document.getElementById('profileName').innerText = 'Гость (Вне ТГ)';
+            }
+
+            await loadUserData();
+        }
+
+        async function loadUserData() {
+            try {
+                const res = await fetch(`${API_URL}/user/profile`, {
+                    headers: {
+                        'Authorization': tg.initData || ''
+                    }
+                });
+                const data = await res.json();
+                currentUserData = data;
+
+                if (data) {
+                    const balance = data.balance ?? 0;
+                    document.getElementById('userBalance').innerText = balance.toLocaleString();
+                    document.getElementById('profileBalance').innerText = balance.toLocaleString();
+                    if (document.getElementById('completedTasksCount')) {
+                        document.getElementById('completedTasksCount').innerText = data.tasks_completed ?? 0;
+                    }
+
+                    if (data.is_pro) {
+                        document.getElementById('userRole').innerText = "👑 PRO Актив";
+                        document.getElementById('userRole').style.color = "#f59e0b";
+                    }
+                }
+            } catch (err) {
+                console.error("Ошибка загрузки данных:", err);
+            }
+        }
+
+        // Логика переключения вкладок (SPA)
+        function switchTab(pageId, navElement) {
+            // Вибрация при нажатии
+            if (tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
+
+            // Скрываем все страницы
+            document.querySelectorAll('.page').forEach(page => {
+                page.classList.remove('active');
+            });
+
+            // Убираем активность со всех кнопок
+            document.querySelectorAll('.nav-item').forEach(item => {
+                item.classList.remove('active');
+            });
+
+            // Активируем нужную страницу и кнопку
+            document.getElementById(pageId).classList.add('active');
+            navElement.classList.add('active');
+
+            tg.MainButton.hide();
+        }
+
+        // Обработчики действий
+        function openTask(taskType, taskId = 1) {
+            if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+
+            let title = '';
+            if (taskType === 'ai_training') title = 'Обучение ИИ';
+            if (taskType === 'copywriting') title = 'Копирайтинг';
+            if (taskType === 'market_analysis') title = 'Анализ рынка';
+
+            tg.showPopup({
+                title: title,
+                message: 'Хотите приступить к выполнению этого задания? На выполнение дается 2 часа.',
+                buttons: [
+                    { type: 'default', text: 'Начать', id: 'start' },
+                    { type: 'cancel', text: 'Позже' }
+                ]
+            }, async (buttonId) => {
+                if (buttonId === 'start') {
+                    try {
+                        const res = await fetch(`${API_URL}/tasks/start`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': tg.initData || ''
+                            },
+                            body: JSON.stringify({
+                                task_id: taskType
+                            })
+                        });
+                        const data = await res.json();
+                        if (data.status === 'success') {
+                            tg.showAlert(data.message || 'Задание принято!');
+                            loadUserData();
+                        } else {
+                            tg.showAlert(data.message || 'Задание начато!');
+                        }
+                    } catch (e) {
+                        tg.showAlert('Задание успешно начато!');
+                    }
+                }
+            });
+        }
+
+        async function buyPro() {
+            if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
+
+            try {
+                const res = await fetch(`${API_URL}/payments/buy_pro`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': tg.initData || ''
+                    }
+                });
+                const data = await res.json();
+
+                if (data.invoice_link) {
+                    tg.openInvoice(data.invoice_link, function (status) {
+                        if (status === 'paid') {
+                            tg.showAlert("Тўлов муваффақиятли амалга оширилди! PRO статус фаоллашди.");
+                            loadUserData();
+                        } else if (status === 'failed') {
+                            tg.showAlert("Тўлов бекор қилинди ёки хатолик юз берди.");
+                        }
+                    });
+                } else {
+                    tg.showAlert("Хатолик: " + (data.detail || "Счет яратиб бўлмади."));
+                }
+            } catch (e) {
+                tg.showAlert("Хатолик юз берди.");
+            }
+        }
+
+        function contactSupport() {
+            // Открывает диалог с вашим аккаунтом или ботом поддержки
+            tg.openTelegramLink('https://t.me/habibim_1122');
+        }
+
+        function closeApp() {
+            tg.close();
+        }
+
+        // Запуск инициализации при загрузке DOM
+        window.addEventListener('DOMContentLoaded', initApp);
+    </script>
+</body>
+
+</html>
