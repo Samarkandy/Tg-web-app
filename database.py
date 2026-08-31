@@ -2,7 +2,7 @@ import os
 from datetime import datetime
 from sqlalchemy import (
     create_engine, Column, Integer, BigInteger, String, 
-    Boolean, DateTime, ForeignKey, UniqueConstraint
+    Boolean, DateTime, ForeignKey, UniqueConstraint, inspect
 )
 from sqlalchemy.orm import sessionmaker, declarative_base, relationship
 
@@ -70,6 +70,14 @@ class Withdrawal(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     user = relationship("User", back_populates="withdrawals")
+
+# === АВТОМАТИЧЕСКАЯ ПРОВЕРКА И МИГРАЦИЯ ДЛЯ SQLITE ===
+inspector = inspect(engine)
+if "users" in inspector.get_table_names():
+    columns = [c["name"] for c in inspector.get_columns("users")]
+    if "referrer_id" not in columns:
+        # Удалится старая таблица со старой структурой
+        Base.metadata.drop_all(bind=engine)
 
 Base.metadata.create_all(bind=engine)
 
