@@ -18,6 +18,14 @@ from database import get_db, User, Task, UserTask, Withdrawal
 
 app = FastAPI(title="TMA Backend API", version="2.0")
 
+from database import Base, engine
+
+@app.get("/api/reset_db")
+def reset_database():
+    Base.metadata.drop_all(bind=engine)
+    Base.metadata.create_all(bind=engine)
+    return {"message": "База данных успешно очищена и пересоздана с новыми колонками!"}
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
