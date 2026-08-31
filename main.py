@@ -327,7 +327,7 @@ async def telegram_webhook(request: Request, db: Session = Depends(get_db)):
                             "reply_markup": {
                                 "inline_keyboard": [[{
                                     "text": "🚀 Открыть Биржу Заданий",
-                                    "web_app": {"url": WEBAPP_URL}
+                                    "web_app": {"url": "https://frontend-tma-2w9i.onrender.com/"}
                                 }]]
                             }
                         }
