@@ -258,14 +258,64 @@ async def create_pro_invoice(user_tg: dict = Depends(verify_telegram_data)):
 
 # === 7. WEBHOOK, РЕФЕРАЛЫ И TELEGRAM STARS ===
 
+
+
+import traceback
+
 @app.post("/webhook")
 async def telegram_webhook(request: Request, db: Session = Depends(get_db)):
     try:
         update = await request.json()
-    except Exception:
+    except Exception as e:
+        print("Ошибка чтения JSON:", e)
         return {"ok": False}
 
-    WEBAPP_URL = os.getenv("WEBAPP_URL", "https://frontend-tma-2w9i.onrender.com")
+    try:
+        # Основная логика обработки
+        WEBAPP_URL = os.getenv("WEBAPP_URL", "https://frontend-tma-2w9i.onrender.com")
+
+        if "message" in update:
+            msg = update["message"]
+            user_id = msg.get("from", {}).get("id")
+            first_name = msg.get("from", {}).get("first_name", "Пользователь")
+            username = msg.get("from", {}).get("username")
+
+            if "text" in msg and msg["text"].startswith("/start"):
+                # Поиск или создание пользователя
+                user = db.query(User).filter(User.telegram_id == user_id).first()
+                if not user:
+                    user = User(
+                        telegram_id=user_id,
+                        first_name=first_name,
+                        username=username,
+                        balance=100
+                    )
+                    db.add(user)
+                    db.commit()
+
+                # Отправка сообщения
+                async with httpx.AsyncClient() as client:
+                    res = await client.post(
+                        f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+                        json={
+                            "chat_id": user_id,
+                            "text": f"Привет, **{first_name}**! 👋\n\nДобро пожаловать в **TMA Earning Hub**.",
+                            "parse_mode": "Markdown",
+                            "reply_markup": {
+                                "inline_keyboard": [[{
+                                    "text": "🚀 Открыть Приложение",
+                                    "web_app": {"url": WEBAPP_URL}
+                                }]]
+                            }
+                        }
+                    )
+                    print("Ответ от Telegram API:", res.status_code, res.text)
+
+    except Exception as e:
+        print(" Ошибка при обработке /start:")
+        traceback.print_exc()
+
+    return {"ok": True}
 
     # 1. Подтверждение оплаты Telegram Stars (Pre-Checkout)
     if "pre_checkout_query" in update:
