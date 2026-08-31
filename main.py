@@ -36,18 +36,21 @@ async def root():
 # === 1. СИСТЕМА БЕЗОПАСНОСТИ (HMAC-SHA256 & ANTI-REPLAY) ===
 
 def verify_telegram_data(authorization: Optional[str] = Header(None)) -> dict:
-    if not authorization:
+    # ИСПРАВЛЕНИЕ 1: Обработка строковых null/undefined от встроенного браузера
+    if not authorization or authorization.strip() in ["Bearer", "Bearer null", "Bearer undefined"]:
         if ENV == "development":
             return {"id": 12345678, "first_name": "Dev User", "username": "dev_user"}
         raise HTTPException(status_code=401, detail="Авторизационные данные отсутствуют")
 
-    init_data = authorization.replace("Bearer ", "").strip()
-    if not init_data:
+    init_data = authorization.replace("Bearer ", "").replace("bearer ", "").strip()
+    if not init_data or init_data in ["null", "undefined"]:
         raise HTTPException(status_code=401, detail="Пустой токен авторизации")
 
     try:
-        parsed_data = dict(parse_qsl(init_data, strict_parsing=True))
-    except Exception:
+        # ИСПРАВЛЕНИЕ 2: keep_blank_values=True предотвращает ошибку "Неверная структура"
+        parsed_data = dict(parse_qsl(init_data, keep_blank_values=True))
+    except Exception as e:
+        print("Ошибка парсинга initData:", e)
         raise HTTPException(status_code=400, detail="Неверная структура initData")
 
     if "hash" not in parsed_data:
