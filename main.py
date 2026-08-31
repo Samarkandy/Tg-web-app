@@ -20,7 +20,7 @@ app = FastAPI(title="TMA Backend API", version="2.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://frontend-tma-2w9i.onrender.com"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
