@@ -84,21 +84,118 @@ Base.metadata.create_all(bind=engine)
 def seed_initial_tasks():
     db = SessionLocal()
     try:
-        existing = db.query(Task).count()
-        if existing == 0:
-            initial_tasks = [
-                Task(id="ai_training", title="Обучение ИИ", description="Оценка и разметка ответов нейросетей на узбекском/русском языках.", reward=150, category="ai", icon_type="cpu"),
-                Task(id="copywriting", title="Копирайтинг поста", description="Написание вовлекающего текста для Telegram-канала бренда.", reward=200, category="copywriting", icon_type="pen"),
-                Task(id="market_analysis", title="Анализ цен", description="Мониторинг цен товаров на маркетплейсе Uzum.", reward=100, category="survey", icon_type="chart"),
-                Task(id="telegram_sub", title="Подписка на канал", description="Подписаться на официальный анонс-канал проекта.", reward=80, category="social", icon_type="telegram"),
-                Task(id="voice_transcribe", title="Аудио транскрибация", description="Перевод 1-минутной аудиозаписи в идеальный текст.", reward=120, category="ai", icon_type="mic"),
-            ]
-            db.add_all(initial_tasks)
-            db.commit()
+        initial_tasks = [
+            # --- Категория: ИИ и Разметка (ai) ---
+            Task(
+                id="ai_training", 
+                title="Обучение ИИ", 
+                description="Оценка и разметка ответов нейросетей на узбекском и русском языках.", 
+                reward=150, 
+                category="ai", 
+                icon_type="cpu"
+            ),
+            Task(
+                id="voice_transcribe", 
+                title="Аудио транскрибация", 
+                description="Расшифровка 1-минутной голосовой записи в грамотный текст.", 
+                reward=120, 
+                category="ai", 
+                icon_type="mic"
+            ),
+            Task(
+                id="ai_image_check", 
+                title="Модерация картинок", 
+                description="Проверка 10 сгенерированных нейросетью изображений на артефакты.", 
+                reward=90, 
+                category="ai", 
+                icon_type="brain"
+            ),
+
+            # --- Категория: Тексты и Копирайтинг (copywriting) ---
+            Task(
+                id="copywriting", 
+                title="Копирайтинг поста", 
+                description="Написание вовлекающего рекламного поста для Telegram-канала бренда.", 
+                reward=200, 
+                category="copywriting", 
+                icon_type="pen"
+            ),
+            Task(
+                id="proofread_article", 
+                title="Вычитка статьи", 
+                description="Исправление орфографических и стилистических ошибок в короткой заметке.", 
+                reward=160, 
+                category="copywriting", 
+                icon_type="pen"
+            ),
+            Task(
+                id="seo_description", 
+                title="SEO-описание товара", 
+                description="Составление карточки товара с ключевыми словами для маркетплейса.", 
+                reward=110, 
+                category="copywriting", 
+                icon_type="pen"
+            ),
+
+            # --- Категория: Социальные сети (social) ---
+            Task(
+                id="telegram_sub", 
+                title="Подписка на канал", 
+                description="Подписаться на официальный анонс-канал проекта в Telegram.", 
+                reward=80, 
+                category="social", 
+                icon_type="telegram"
+            ),
+            Task(
+                id="youtube_watch", 
+                title="Просмотр видео", 
+                description="Просмотр короткого 2-минутного видеообзора платформы.", 
+                reward=100, 
+                category="social", 
+                icon_type="telegram"
+            ),
+            Task(
+                id="comment_post", 
+                title="Комментарий под постом", 
+                description="Оставить осмысленный отзыв из 5+ слов под публикацией.", 
+                reward=70, 
+                category="social", 
+                icon_type="telegram"
+            ),
+
+            # --- Категория: Опросы и Исследования (survey) ---
+            Task(
+                id="market_analysis", 
+                title="Анализ цен Uzum", 
+                description="Мониторинг и сравнение цен на электронику на маркетплейсе.", 
+                reward=100, 
+                category="survey", 
+                icon_type="chart"
+            ),
+            Task(
+                id="app_feedback", 
+                title="Опрос по UX/UI", 
+                description="Заполнение короткой анкеты из 4 вопросов об удобстве интерфейса.", 
+                reward=130, 
+                category="survey", 
+                icon_type="chart"
+            ),
+            Task(
+                id="quiz_crypto", 
+                title="Тест на знания Web3", 
+                description="Быстрый квиз о базовых понятиях блокчейна и смарт-контрактов.", 
+                reward=150, 
+                category="survey", 
+                icon_type="chart"
+            ),
+        ]
+
+        for task in initial_tasks:
+            db.merge(task)  # Добавляет новые задачи и обновляет существующие
+            
+        db.commit()
     finally:
         db.close()
-
-seed_initial_tasks()
 
 def get_db():
     db = SessionLocal()
