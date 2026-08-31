@@ -9,6 +9,8 @@ from urllib.parse import parse_qsl
 from fastapi import FastAPI, HTTPException, Header, Depends, Request
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
+# pyrefly: ignore [missing-import]
+from routers import tasks
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, func
@@ -16,7 +18,15 @@ import httpx
 
 from database import get_db, User, Task, UserTask, Withdrawal
 
-app = FastAPI(title="TMA Earnings Platform API", version="2.0")
+app = FastAPI(title="TMA Backend API", version="2.0")
+
+# Подключение роутеров
+app.include_router(tasks.router)
+# app.include_router(users.router)
+
+@app.get("/")
+async def root():
+    return {"message": "API is running. WebApp should be accessed via Frontend URL."}
 
 app.add_middleware(
     CORSMiddleware,
