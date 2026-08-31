@@ -256,7 +256,7 @@ async def create_pro_invoice(user_tg: dict = Depends(verify_telegram_data)):
         return {"invoice_link": data["result"]}
     raise HTTPException(status_code=400, detail="Ошибка генерации счета Stars")
 
-# === 7. WEBHOOK И РЕФЕРАЛЬНАЯ СИСТЕМА ===
+# === 7. WEBHOOK, РЕФЕРАЛЫ И TELEGRAM STARS ===
 
 @app.post("/webhook")
 async def telegram_webhook(request: Request, db: Session = Depends(get_db)):
@@ -264,7 +264,10 @@ async def telegram_webhook(request: Request, db: Session = Depends(get_db)):
         update = await request.json()
     except Exception:
         return {"ok": False}
-    
+
+    WEBAPP_URL = os.getenv("WEBAPP_URL", "https://frontend-tma-2w9i.onrender.com")
+
+    # 1. Подтверждение оплаты Telegram Stars (Pre-Checkout)
     if "pre_checkout_query" in update:
         query_id = update["pre_checkout_query"]["id"]
         async with httpx.AsyncClient() as client:
@@ -273,11 +276,15 @@ async def telegram_webhook(request: Request, db: Session = Depends(get_db)):
                 json={"pre_checkout_query_id": query_id, "ok": True}
             )
         return {"ok": True}
-        
+
+    # 2. Обработка сообщений от пользователя
     if "message" in update:
         msg = update["message"]
         user_id = msg.get("from", {}).get("id")
+        first_name = msg.get("from", {}).get("first_name", "Пользователь")
+        username = msg.get("from", {}).get("username")
 
+        # Активация PRO после успешной оплаты Stars
         if "successful_payment" in msg:
             user = db.query(User).filter(User.telegram_id == user_id).first()
             if user:
@@ -286,48 +293,68 @@ async def telegram_webhook(request: Request, db: Session = Depends(get_db)):
             async with httpx.AsyncClient() as client:
                 await client.post(
                     f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-                    json={"chat_id": user_id, "text": "💎 PRO Статус активирован! Теперь ваш доход за все задания удвоен (x2)!"}
+                    json={
+                        "chat_id": user_id, 
+                        "text": "💎 **PRO-статус успешно активирован!**\n\nТеперь ваш доход за выполнение заданий удвоен (x2)!"
+                    }
                 )
             return {"ok": True}
 
+        # Команда /start с поддержкой реферальных ссылок (/start ref_123456)
         if "text" in msg and msg["text"].startswith("/start"):
             args = msg["text"].split()
             referrer_id = None
+            
             if len(args) > 1 and args[1].startswith("ref_"):
                 try:
-                    referrer_id = int(args[1].replace("ref_", ""))
+                    parsed_ref = int(args[1].replace("ref_", ""))
+                    if parsed_ref != user_id:
+                        referrer_id = parsed_ref
                 except ValueError:
                     pass
 
+            # Регистрируем пользователя, если его нет в БД
             user = db.query(User).filter(User.telegram_id == user_id).first()
             if not user:
                 user = User(
                     telegram_id=user_id,
-                    first_name=msg["from"].get("first_name", "User"),
-                    username=msg["from"].get("username"),
-                    balance=100,
-                    referrer_id=referrer_id if referrer_id != user_id else None
+                    first_name=first_name,
+                    username=username,
+                    balance=100, # Приветственный бонус 100 монет
+                    referrer_id=referrer_id
                 )
                 db.add(user)
-                if referrer_id and referrer_id != user_id:
+
+                # Начисление бонуса рефереру (150 монет)
+                if referrer_id:
                     ref_user = db.query(User).filter(User.telegram_id == referrer_id).first()
                     if ref_user:
-                        ref_user.balance += 150 # Бонус рефереру
+                        ref_user.balance += 150
+
                 db.commit()
 
-            webapp_url = os.getenv("WEBAPP_URL", "https://tma-api-uz.onrender.com")
+            # Отправляем приветственное сообщение с Inline-кнопкой WebApp
+            welcome_text = (
+                f"Привет, **{first_name}**! 👋\n\n"
+                "Добро пожаловать в **TMA Earning Hub**.\n"
+                "Выполняйте микрозадачи, поднимайтесь в рейтинге и выводите заработанные средства.\n\n"
+                "🎁 Тебе начислен приветственный бонус: **100 coins**"
+            )
+
             async with httpx.AsyncClient() as client:
                 await client.post(
                     f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
                     json={
                         "chat_id": user_id,
-                        "text": "⚡ **Добро пожаловать в TMA Earning Hub!**\n\nВыполняйте задания, прокачивайте статус и выводите реальный баланс.",
+                        "text": welcome_text,
                         "parse_mode": "Markdown",
                         "reply_markup": {
-                            "inline_keyboard": [[{
-                                "text": "🚀 Открыть Приложение",
-                                "web_app": {"url": webapp_url}
-                            }]]
+                            "inline_keyboard": [[
+                                {
+                                    "text": "🚀 Открыть Биржу Заданий",
+                                    "web_app": {"url": WEBAPP_URL}
+                                }
+                            ]]
                         }
                     }
                 )
