@@ -18,10 +18,6 @@ from database import get_db, User, Task, UserTask, Withdrawal
 
 app = FastAPI(title="TMA Backend API", version="2.0")
 
-@app.get("/")
-async def root():
-    return {"message": "API is running. WebApp should be accessed via Frontend URL."}
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["https://frontend-tma-2w9i.onrender.com"],
@@ -34,8 +30,8 @@ BOT_TOKEN = os.getenv("BOT_TOKEN", "8898935141:AAEtknI8I0YKaa9KyHelV5gyCMcaedArS
 ENV = os.getenv("ENVIRONMENT", "production")
 
 @app.get("/")
-async def serve_index():
-    return FileResponse("index.html")
+async def root():
+    return {"message": "API is running. WebApp should be accessed via Frontend URL."}
 
 # === 1. СИСТЕМА БЕЗОПАСНОСТИ (HMAC-SHA256 & ANTI-REPLAY) ===
 
@@ -82,20 +78,22 @@ def verify_telegram_data(authorization: Optional[str] = Header(None)) -> dict:
 
 def get_or_create_user(user_tg: dict, db: Session) -> User:
     tg_id = user_tg.get("id")
-                # Поиск или создание пользователя
-        user = db.query(User).filter(User.telegram_id == user_id).first()
-        if not user:
-            user = User(
-                telegram_id=user_id,
-                first_name=first_name,
-                username=username,
-                balance=100,           # Приветственный бонус
-                tasks_completed=0,     # ОБЯЗАТЕЛЬНОЕ ПОЛЕ
-                is_pro=False,          # ОБЯЗАТЕЛЬНОЕ ПОЛЕ
-                referrer_id=referrer_id
-            )
-            db.add(user)
-            db.commit()
+    first_name = user_tg.get("first_name", "Пользователь")
+    username = user_tg.get("username")
+
+    user = db.query(User).filter(User.telegram_id == tg_id).first()
+    if not user:
+        user = User(
+            telegram_id=tg_id,
+            first_name=first_name,
+            username=username,
+            balance=100,
+            tasks_completed=0,
+            is_pro=False,
+            referrer_id=None
+        )
+        db.add(user)
+        db.commit()
         db.refresh(user)
     return user
 
@@ -105,7 +103,6 @@ def get_or_create_user(user_tg: dict, db: Session) -> User:
 async def get_profile(user_tg: dict = Depends(verify_telegram_data), db: Session = Depends(get_db)):
     user = get_or_create_user(user_tg, db)
     
-    # Вычисление места в рейтинге
     higher_users = db.query(func.count(User.telegram_id)).filter(User.balance > user.balance).scalar()
     rank = higher_users + 1
 
@@ -139,7 +136,7 @@ async def get_tasks(user_tg: dict = Depends(verify_telegram_data), db: Session =
             "id": t.id,
             "title": t.title,
             "description": t.description,
-            "reward": t.reward * 2 if user.is_pro else t.reward, # PRO множитель x2
+            "reward": t.reward * 2 if user.is_pro else t.reward,
             "category": t.category,
             "icon_type": t.icon_type,
             "is_completed": t.id in completed_task_ids
@@ -159,9 +156,8 @@ async def complete_task(
     
     task = db.query(Task).filter(Task.id == req.task_id, Task.is_active == True).first()
     if not task:
-        raise HTTPException(status_code=444, detail="Задание не найдено или неактивно")
+        raise HTTPException(status_code=404, detail="Задание не найдено или неактивно")
 
-    # Проверка на повторное выполнение (Анти-накрутка)
     existing_completion = db.query(UserTask).filter(
         UserTask.telegram_id == user.telegram_id,
         UserTask.task_id == req.task_id
@@ -172,7 +168,6 @@ async def complete_task(
 
     reward = task.reward * 2 if user.is_pro else task.reward
 
-    # Атомарная транзакция
     user_task = UserTask(telegram_id=user.telegram_id, task_id=task.id)
     user.balance += reward
     user.tasks_completed += 1
@@ -207,7 +202,7 @@ async def get_leaderboard(db: Session = Depends(get_db)):
 # === 5. ВЫВОД СРЕДСТВ И КОШЕЛЕК ===
 
 class WithdrawRequest(BaseModel):
-    amount: int = Field(..., gt=999) # Мин. вывод 1000 монет
+    amount: int = Field(..., gt=999)
     wallet: str = Field(..., min_length=5)
 
 @app.post("/api/wallet/withdraw")
@@ -221,7 +216,6 @@ async def request_withdrawal(
     if user.balance < req.amount:
         raise HTTPException(status_code=400, detail="Недостаточно монет на балансе")
 
-    # Защита от дублирующих кликов
     user.balance -= req.amount
     withdrawal = Withdrawal(
         telegram_id=user.telegram_id,
@@ -243,7 +237,7 @@ async def create_pro_invoice(user_tg: dict = Depends(verify_telegram_data)):
     
     payload = {
         "title": "PRO Доступ (VIP Множитель x2)",
-        "description": "Удвоенный доход за задания, доступ к VIP заказывам и приоритетные выплаты.",
+        "description": "Удвоенный доход за задания, доступ к VIP заказам и приоритетные выплаты.",
         "payload": f"pro_sub_{user_id}",
         "currency": "XTR",
         "prices": [{"label": "PRO Статус", "amount": 250}],
@@ -259,6 +253,7 @@ async def create_pro_invoice(user_tg: dict = Depends(verify_telegram_data)):
     raise HTTPException(status_code=400, detail="Ошибка генерации счета Stars")
 
 # === 7. WEBHOOK, РЕФЕРАЛЫ И TELEGRAM STARS ===
+
 @app.post("/webhook")
 async def telegram_webhook(request: Request, db: Session = Depends(get_db)):
     try:
@@ -299,7 +294,6 @@ async def telegram_webhook(request: Request, db: Session = Depends(get_db)):
                     pass
 
             try:
-                # ВАЖНО: Ровный отступ 16 пробелов внутри блока if
                 user = db.query(User).filter(User.telegram_id == user_id).first()
                 if not user:
                     user = User(
