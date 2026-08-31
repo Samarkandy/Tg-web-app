@@ -259,71 +259,17 @@ async def create_pro_invoice(user_tg: dict = Depends(verify_telegram_data)):
     raise HTTPException(status_code=400, detail="Ошибка генерации счета Stars")
 
 # === 7. WEBHOOK, РЕФЕРАЛЫ И TELEGRAM STARS ===
-
-
-
-import traceback
-
 @app.post("/webhook")
 async def telegram_webhook(request: Request, db: Session = Depends(get_db)):
     try:
         update = await request.json()
-        # ... Ваша логика обработки ...
     except Exception as e:
-        db.rollback()  # Очищает сбойную транзакцию
-        print(f"Ошибка в Webhook: {e}")
-        return {"ok": True} # Telegram ждет статус 200/ok, чтобы не повторять ошибочный запрос
+        print("Ошибка чтения JSON:", e)
+        return {"ok": True}
 
-    return {"ok": True}
+    WEBAPP_URL = os.getenv("WEBAPP_URL", "https://frontend-tma-2w9i.onrender.com")
 
-    try:
-        # Основная логика обработки
-        WEBAPP_URL = os.getenv("WEBAPP_URL", "https://frontend-tma-2w9i.onrender.com")
-
-        if "message" in update:
-            msg = update["message"]
-            user_id = msg.get("from", {}).get("id")
-            first_name = msg.get("from", {}).get("first_name", "Пользователь")
-            username = msg.get("from", {}).get("username")
-
-            if "text" in msg and msg["text"].startswith("/start"):
-                # Поиск или создание пользователя
-                user = db.query(User).filter(User.telegram_id == user_id).first()
-                if not user:
-                    user = User(
-                        telegram_id=user_id,
-                        first_name=first_name,
-                        username=username,
-                        balance=100
-                    )
-                    db.add(user)
-                    db.commit()
-
-                # Отправка сообщения
-                async with httpx.AsyncClient() as client:
-                    res = await client.post(
-                        f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-                        json={
-                            "chat_id": user_id,
-                            "text": f"Привет, **{first_name}**! 👋\n\nДобро пожаловать в **TMA Earning Hub**.",
-                            "parse_mode": "Markdown",
-                            "reply_markup": {
-                                "inline_keyboard": [[{
-                                    "text": "🚀 Открыть Приложение",
-                                    "web_app": {"url": WEBAPP_URL}
-                                }]]
-                            }
-                        }
-                    )
-                    print("Ответ от Telegram API:", res.status_code, res.text)
-
-    except Exception as e:
-        print(" Ошибка при обработке /start:")
-        traceback.print_exc()
-
-    return {"ok": True}
-
-    # 1. Подтверждение оплаты Telegram Stars (Pre-Checkout)
+    # 1. Подтверждение оплаты Telegram Stars
     if "pre_checkout_query" in update:
         query_id = update["pre_checkout_query"]["id"]
         async with httpx.AsyncClient() as client:
@@ -333,30 +279,13 @@ async def telegram_webhook(request: Request, db: Session = Depends(get_db)):
             )
         return {"ok": True}
 
-    # 2. Обработка сообщений от пользователя
+    # 2. Обработка сообщений
     if "message" in update:
         msg = update["message"]
         user_id = msg.get("from", {}).get("id")
         first_name = msg.get("from", {}).get("first_name", "Пользователь")
         username = msg.get("from", {}).get("username")
 
-        # Активация PRO после успешной оплаты Stars
-        if "successful_payment" in msg:
-            user = db.query(User).filter(User.telegram_id == user_id).first()
-            if user:
-                user.is_pro = True
-                db.commit()
-            async with httpx.AsyncClient() as client:
-                await client.post(
-                    f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-                    json={
-                        "chat_id": user_id, 
-                        "text": "💎 **PRO-статус успешно активирован!**\n\nТеперь ваш доход за выполнение заданий удвоен (x2)!"
-                    }
-                )
-            return {"ok": True}
-
-        # Команда /start с поддержкой реферальных ссылок (/start ref_123456)
         if "text" in msg and msg["text"].startswith("/start"):
             args = msg["text"].split()
             referrer_id = None
@@ -369,51 +298,54 @@ async def telegram_webhook(request: Request, db: Session = Depends(get_db)):
                 except ValueError:
                     pass
 
-            # Регистрируем пользователя, если его нет в БД
-            user = db.query(User).filter(User.telegram_id == user_id).first()
-            if not user:
-                user = User(
-                    telegram_id=user_id,
-                    first_name=first_name,
-                    username=username,
-                    balance=100, # Приветственный бонус 100 монет
-                    referrer_id=referrer_id
+            try:
+                # ВАЖНО: Ровный отступ 16 пробелов внутри блока if
+                user = db.query(User).filter(User.telegram_id == user_id).first()
+                if not user:
+                    user = User(
+                        telegram_id=user_id,
+                        first_name=first_name,
+                        username=username,
+                        balance=100,
+                        tasks_completed=0,
+                        is_pro=False,
+                        referrer_id=referrer_id
+                    )
+                    db.add(user)
+
+                    if referrer_id:
+                        ref_user = db.query(User).filter(User.telegram_id == referrer_id).first()
+                        if ref_user:
+                            ref_user.balance += 150
+
+                    db.commit()
+
+                welcome_text = (
+                    f"Привет, **{first_name}**! 👋\n\n"
+                    "Добро пожаловать в **TMA Earning Hub**.\n"
+                    "Выполняйте микрозадачи и выводите реальный баланс.\n\n"
+                    "🎁 Тебе начислен приветственный бонус: **100 coins**"
                 )
-                db.add(user)
 
-                # Начисление бонуса рефереру (150 монет)
-                if referrer_id:
-                    ref_user = db.query(User).filter(User.telegram_id == referrer_id).first()
-                    if ref_user:
-                        ref_user.balance += 150
-
-                db.commit()
-
-            # Отправляем приветственное сообщение с Inline-кнопкой WebApp
-            welcome_text = (
-                f"Привет, **{first_name}**! 👋\n\n"
-                "Добро пожаловать в **TMA Earning Hub**.\n"
-                "Выполняйте микрозадачи, поднимайтесь в рейтинге и выводите заработанные средства.\n\n"
-                "🎁 Тебе начислен приветственный бонус: **100 coins**"
-            )
-
-            async with httpx.AsyncClient() as client:
-                await client.post(
-                    f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-                    json={
-                        "chat_id": user_id,
-                        "text": welcome_text,
-                        "parse_mode": "Markdown",
-                        "reply_markup": {
-                            "inline_keyboard": [[
-                                {
+                async with httpx.AsyncClient() as client:
+                    await client.post(
+                        f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+                        json={
+                            "chat_id": user_id,
+                            "text": welcome_text,
+                            "parse_mode": "Markdown",
+                            "reply_markup": {
+                                "inline_keyboard": [[{
                                     "text": "🚀 Открыть Биржу Заданий",
                                     "web_app": {"url": WEBAPP_URL}
-                                }
-                            ]]
+                                }]]
+                            }
                         }
-                    }
-                )
+                    )
+            except Exception as e:
+                db.rollback()
+                print("Ошибка при обработке /start:", e)
+
             return {"ok": True}
 
     return {"ok": True}
