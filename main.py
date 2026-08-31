@@ -82,18 +82,20 @@ def verify_telegram_data(authorization: Optional[str] = Header(None)) -> dict:
 
 def get_or_create_user(user_tg: dict, db: Session) -> User:
     tg_id = user_tg.get("id")
-    user = db.query(User).filter(User.telegram_id == tg_id).first()
-    if not user:
-        user = User(
-            telegram_id=tg_id,
-            first_name=user_tg.get("first_name", "Исполнитель"),
-            username=user_tg.get("username"),
-            balance=100, # Приветственный бонус
-            tasks_completed=0,
-            is_pro=False
-        )
-        db.add(user)
-        db.commit()
+                # Поиск или создание пользователя
+        user = db.query(User).filter(User.telegram_id == user_id).first()
+        if not user:
+            user = User(
+                telegram_id=user_id,
+                first_name=first_name,
+                username=username,
+                balance=100,           # Приветственный бонус
+                tasks_completed=0,     # ОБЯЗАТЕЛЬНОЕ ПОЛЕ
+                is_pro=False,          # ОБЯЗАТЕЛЬНОЕ ПОЛЕ
+                referrer_id=referrer_id
+            )
+            db.add(user)
+            db.commit()
         db.refresh(user)
     return user
 
@@ -266,9 +268,13 @@ import traceback
 async def telegram_webhook(request: Request, db: Session = Depends(get_db)):
     try:
         update = await request.json()
+        # ... Ваша логика обработки ...
     except Exception as e:
-        print("Ошибка чтения JSON:", e)
-        return {"ok": False}
+        db.rollback()  # Очищает сбойную транзакцию
+        print(f"Ошибка в Webhook: {e}")
+        return {"ok": True} # Telegram ждет статус 200/ok, чтобы не повторять ошибочный запрос
+
+    return {"ok": True}
 
     try:
         # Основная логика обработки
