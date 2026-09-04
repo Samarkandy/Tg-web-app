@@ -5,3 +5,4 @@ pydantic
 sqlalchemy
 aiogram
 python-dotenv
+psycopg2-binary
